@@ -1,0 +1,2 @@
+package com.pixellegolas.fujicam
+enum class FilmRecipe(val number:Int,val displayName:String,val baseSim:String,val fujiSettings:String){REGGIES_PORTRA(1,"Reggies Portra","Classic Chrome",""),TRI_X_400(7,"Tri-X 400","Acros","")}
