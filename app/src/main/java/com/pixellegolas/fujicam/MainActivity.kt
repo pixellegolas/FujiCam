@@ -37,17 +37,30 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         cameraExecutor = Executors.newSingleThreadExecutor()
         if (allPermissionsGranted()) startCamera() else ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 10)
-        binding.shutter.setOnClickListener { takePhoto() }
-        binding.recipeDropdown.setOnClickListener { cycleRecipe() }
-        binding.galleryCount.setOnClickListener { Toast.makeText(this, "Gallery: ${currentRecipe.name}", Toast.LENGTH_SHORT).show() }
+        
+        // v12.1 fix: safe calls for nullable binding
+        binding.shutter?.setOnClickListener { takePhoto() }
+        binding.recipeDropdown?.setOnClickListener { cycleRecipe() }
+        binding.galleryCount?.setOnClickListener {
+            Toast.makeText(this, "Gallery: ${currentRecipe.name}", Toast.LENGTH_SHORT).show()
+        }
+        binding.galleryBtn?.setOnClickListener {
+            Toast.makeText(this, "Gallery: ${currentRecipe.name}", Toast.LENGTH_SHORT).show()
+        }
+        binding.postProcessBtn?.setOnClickListener {
+            Toast.makeText(this, "Post: ${currentRecipe.name}", Toast.LENGTH_SHORT).show()
+        }
         updateUI()
     }
 
     private fun updateUI() {
-        binding.recipeDropdown.text = "${currentRecipe.name} ∨"
-        binding.topLeftChip.text = "● ${currentRecipe.sim.uppercase()}  |  ${currentRecipe.grain.uppercase()} GRAIN"
-        binding.exposureInfo.text = "f/2.0  1/250s  A-ISO ${(100..1600).random()}"
-        binding.awbInfo.text = "${currentRecipe.wb}  ◫ Porträtt"
+        binding.recipeDropdown?.text = "${currentRecipe.name} ∨"
+        binding.topLeftChip?.text = "● ${currentRecipe.sim.uppercase()}  |  ${currentRecipe.grain.uppercase()} GRAIN"
+        binding.exposureInfo?.text = "f/2.0  1/250s  A-ISO ${(100..1600).random()}"
+        binding.awbInfo?.text = "${currentRecipe.wb}  ◫ Porträtt"
+        binding.recipeLabel?.text = "RECIPE  ${currentRecipe.id.uppercase()}"
+        binding.aspectInfo?.text = "2:3 AUTO"
+        binding.evLabel?.text = "HIST  EV 0.0"
     }
 
     private fun cycleRecipe() {
@@ -73,10 +86,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun takePhoto() {
         val ic = imageCapture ?: return
-        binding.shutter.animate().scaleX(0.85f).scaleY(0.85f).setDuration(80).withEndAction {
-            binding.shutter.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
-        }.start()
-        binding.histogramView.bump()
+        binding.shutter?.animate()?.scaleX(0.85f)?.scaleY(0.85f)?.setDuration(80)?.withEndAction {
+            binding.shutter?.animate()?.scaleX(1f)?.scaleY(1f)?.setDuration(80)?.start()
+        }?.start()
+        binding.histogramView?.bump()
         Toast.makeText(this, "Shot • ${currentRecipe.name}", Toast.LENGTH_SHORT).show()
     }
 
