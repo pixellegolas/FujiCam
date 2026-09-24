@@ -1,55 +1,89 @@
 package com.pixellegolas.fujicam
-import android.graphics.*
+
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
-import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.pixellegolas.fujicam.databinding.ActivityMainBinding
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import kotlin.random.Random
-import android.content.ContentValues
-import android.provider.MediaStore
-import androidx.recyclerview.widget.GridLayoutManager
-import android.widget.ImageView
-import androidx.appcompat.app.AlertDialog
-class MainActivity:AppCompatActivity(){
- private lateinit var b:ActivityMainBinding
- private var cap:ImageCapture?=null
- private val exec=Executors.newSingleThreadExecutor()
- private var cur=FilmRecipe.REGGIES_PORTRA
- private var last:Bitmap?=null
- private var live=false
- private val rnd=Random(System.nanoTime())
- override fun onCreate(s:Bundle?){
-  super.onCreate(s)
-  b=ActivityMainBinding.inflate(layoutInflater)
-  setContentView(b.root)
-  b.shutter?.setOnClickListener{take()}
-  b.retakeBtn?.setOnClickListener{b.resultOverlay?.visibility=View.GONE}
-  b.saveBtn?.setOnClickListener{save()}
-  b.galleryBtn?.setOnClickListener{gallery()}
-  b.liveCheck?.setOnCheckedChangeListener{_,c->live=c}
-  b.infoNumber?.text="#01"
-  b.infoName?.text="REGGIES"
-  b.infoSim?.text="CLASSIC"
-  start()
- }
- private fun start(){
-  val f=ProcessCameraProvider.getInstance(this)
-  f.addListener({
-   val p=f.get()
-   val prev=Preview.Builder().build().also{it.setSurfaceProvider(b.viewFinder.surfaceProvider)}
-   cap=ImageCapture.Builder().build()
-   val a=ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-   a.setAnalyzer(exec){img->img.close()}
-   p.unbindAll()
-   p.bindToLifecycle(this,androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA,prev,cap,a)
-  },ContextCompat.getMainExecutor(this))
- }
- private fun take(){}
- private fun save(){}
- private fun gallery(){}
- private fun filter(src:Bitmap,withGlow:Boolean):Bitmap{return src}
+
+class MainActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityMainBinding
+    private var imageCapture: ImageCapture? = null
+    private var camera: Camera? = null
+    private lateinit var cameraExecutor: ExecutorService
+
+    data class FujiRecipe(val id: String, val name: String, val sim: String, val grain: String, val wb: String)
+    private val recipes = listOf(
+        FujiRecipe("cc", "Classic Chrome", "Classic Chrome", "Weak", "Auto"),
+        FujiRecipe("ccn", "CCN Natural", "Classic Chrome", "Off", "5200K"),
+        FujiRecipe("nc", "Nostalgic Neg", "Nostalgic Neg.", "Weak", "Auto"),
+        FujiRecipe("nh", "Natural Vivid", "ETERNA Vivid", "Off", "Auto"),
+        FujiRecipe("acros", "ACROS+R", "ACROS+R", "Strong", " - "),
+        FujiRecipe("portra", "Portra 400", "PRO Neg Hi", "Weak", "5600K"),
+        FujiRecipe("kodak", "Kodak Gold", "Classic Chrome", "Strong", "5500K")
+    )
+    private var currentRecipe = recipes[1]
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        cameraExecutor = Executors.newSingleThreadExecutor()
+        if (allPermissionsGranted()) startCamera() else ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 10)
+        binding.shutter.setOnClickListener { takePhoto() }
+        binding.recipeDropdown.setOnClickListener { cycleRecipe() }
+        binding.galleryCount.setOnClickListener { Toast.makeText(this, "Gallery: ${currentRecipe.name}", Toast.LENGTH_SHORT).show() }
+        updateUI()
+    }
+
+    private fun updateUI() {
+        binding.recipeDropdown.text = "${currentRecipe.name} ∨"
+        binding.topLeftChip.text = "● ${currentRecipe.sim.uppercase()}  |  ${currentRecipe.grain.uppercase()} GRAIN"
+        binding.exposureInfo.text = "f/2.0  1/250s  A-ISO ${(100..1600).random()}"
+        binding.awbInfo.text = "${currentRecipe.wb}  ◫ Porträtt"
+    }
+
+    private fun cycleRecipe() {
+        val idx = recipes.indexOf(currentRecipe)
+        currentRecipe = recipes[(idx+1) % recipes.size]
+        updateUI()
+        Toast.makeText(this, "Recipe: ${currentRecipe.name}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun startCamera() {
+        val providerFuture = ProcessCameraProvider.getInstance(this)
+        providerFuture.addListener({
+            val provider = providerFuture.get()
+            val preview = Preview.Builder().build().also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
+            imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).build()
+            val selector = CameraSelector.DEFAULT_BACK_CAMERA
+            try {
+                provider.unbindAll()
+                camera = provider.bindToLifecycle(this, selector, preview, imageCapture)
+            } catch(e: Exception) { e.printStackTrace() }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun takePhoto() {
+        val ic = imageCapture ?: return
+        binding.shutter.animate().scaleX(0.85f).scaleY(0.85f).setDuration(80).withEndAction {
+            binding.shutter.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
+        }.start()
+        binding.histogramView.bump()
+        Toast.makeText(this, "Shot • ${currentRecipe.name}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun allPermissionsGranted() = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    override fun onRequestPermissionsResult(rc: Int, perms: Array<String>, res: IntArray) {
+        super.onRequestPermissionsResult(rc, perms, res)
+        if (rc==10 && allPermissionsGranted()) startCamera()
+    }
+    override fun onDestroy() { super.onDestroy(); cameraExecutor.shutdown() }
 }
